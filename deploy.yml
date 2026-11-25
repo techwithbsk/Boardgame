@@ -52,7 +52,7 @@ spec:
       serviceAccountName: full-access-sa
       containers:
         - name: boardgame
-          image: kuchalakantikris/boardgame902:latest # Image that will be used to containers in the cluster
+          image: techwithbsk/boardgame:latest # Image that will be used to containers in the cluster
           imagePullPolicy: Always
           ports:
             - containerPort: 8080 # The port that the container is running on in the cluster
