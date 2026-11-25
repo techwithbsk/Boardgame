@@ -1,0 +1,66 @@
+trigger: none
+
+variables:
+  azureServiceConnection: terraform-spn
+  javaWebAppName: bsk-java-webapp
+stages:
+  - stage: Build
+    displayName: Build and test JAR
+    jobs:
+      - job: BuildJar
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: Maven@4
+            displayName: Build and test Java application
+            inputs:
+              mavenPomFile: pom.xml
+              goals: clean verify
+              options: -B
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              javaHomeOption: JDKVersion
+              jdkVersionOption: '1.17'
+              mavenVersionOption: Default
+
+          - bash: |
+              set -eo pipefail
+              shopt -s nullglob
+              jars=(target/*.jar)
+              if [ "${#jars[@]}" -ne 1 ]; then
+                echo "Expected one executable JAR in target, found ${#jars[@]}." >&2
+                exit 1
+              fi
+              mkdir -p "$(Build.ArtifactStagingDirectory)/jar"
+              cp "${jars[0]}" "$(Build.ArtifactStagingDirectory)/jar/app.jar"
+            displayName: Stage executable JAR
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish JAR artifact
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/jar
+              artifact: jar-package
+
+  - stage: Deploy
+    displayName: Deploy JAR to Azure Web App
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: DeployJar
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - download: current
+            artifact: jar-package
+
+          - task: AzureWebApp@1
+            displayName: Deploy JAR to Linux Web App
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              appType: webAppLinux
+              appName: $(javaWebAppName)
+              package: $(Pipeline.Workspace)/jar-package/app.jar
+              runtimeStack: 'JAVA|17-java17'
+              startUpCommand: 'java -jar /home/site/wwwroot/app.jar'

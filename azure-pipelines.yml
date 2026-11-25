@@ -1,13 +1,10 @@
-trigger:
-  branches:
-    include:
-      - none
+trigger: none
 
 variables:
   imageRepository: techwithbsk/boardgame
-  dockerRegistryServiceConnection: YOUR_DOCKERHUB_SERVICE_CONNECTION
-  azureServiceConnection: YOUR_AZURE_SERVICE_CONNECTION
-  azureWebAppName: YOUR_AZURE_WEB_APP_NAME
+  dockerRegistryServiceConnection: dockerspn
+  azureServiceConnection: terraform-spn
+  azureWebAppName: bsk-webapp
 
 stages:
   - stage: Build
