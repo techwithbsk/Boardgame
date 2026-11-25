@@ -1,0 +1,63 @@
+trigger:
+  branches:
+    include:
+      - none
+
+variables:
+  imageRepository: techwithbsk/boardgame
+  dockerRegistryServiceConnection: YOUR_DOCKERHUB_SERVICE_CONNECTION
+  azureServiceConnection: YOUR_AZURE_SERVICE_CONNECTION
+  azureWebAppName: YOUR_AZURE_WEB_APP_NAME
+
+stages:
+  - stage: Build
+    displayName: Build, test, and publish image
+    jobs:
+      - job: BuildAndPush
+        displayName: Build and push Docker image
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: Maven@4
+            displayName: Build and test Java application
+            inputs:
+              mavenPomFile: pom.xml
+              goals: clean verify
+              options: -B
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              javaHomeOption: JDKVersion
+              jdkVersionOption: '1.17'
+              mavenVersionOption: Default
+
+          - task: Docker@2
+            displayName: Build and push image to Docker Hub
+            inputs:
+              command: buildAndPush
+              containerRegistry: $(dockerRegistryServiceConnection)
+              repository: $(imageRepository)
+              Dockerfile: $(Build.SourcesDirectory)/Dockerfile
+              buildContext: $(Build.SourcesDirectory)
+              tags: |
+                $(Build.BuildId)
+                latest
+
+  - stage: Deploy
+    displayName: Deploy to Azure Web App
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: DeployWebApp
+        displayName: Deploy container image
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureWebAppContainer@1
+            displayName: Deploy image to Azure
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              appName: $(azureWebAppName)
+              containers: $(imageRepository):$(Build.BuildId)
+              appSettings: '-WEBSITES_PORT 8080'
